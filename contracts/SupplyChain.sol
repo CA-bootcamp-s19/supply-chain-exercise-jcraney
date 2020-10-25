@@ -12,10 +12,12 @@ contract SupplyChain {
   address owner;
 
   /* Add a variable called skuCount to track the most recent sku # */
+  uint skuCount;
 
   /* Add a line that creates a public mapping that maps the SKU (a number) to an Item.
      Call this mappings items
   */
+  mapping (uint => Item) public items;
 
   /* Add a line that creates an enum called State. This should have 4 states
     ForSale
@@ -24,6 +26,7 @@ contract SupplyChain {
     Received
     (declaring them in this order is important for testing)
   */
+  enum State{ ForSale, Sold, Shipped, Received }
 
   /* Create a struct named Item.
     Here, add a name, sku, price, state, seller, and buyer
@@ -31,12 +34,26 @@ contract SupplyChain {
     if you need help you can ask around :)
     Be sure to add "payable" to addresses that will be handling value transfer
   */
+  struct Item {
+    string name;
+    uint sku;
+    uint price;
+    State state;
+    address payable seller;
+    address payable buyer;
+  }
 
   /* Create 4 events with the same name as each possible State (see above)
     Prefix each event with "Log" for clarity, so the forSale event will be called "LogForSale"
     Each event should accept one argument, the sku */
+  event LogForSale(uint sku);
+  event LogSold(uint sku);
+  event LogShipped(uint sku);
+  event LogReceived(uint sku);
 
 /* Create a modifer that checks if the msg.sender is the owner of the contract */
+  
+  modifier isOwner { require (msg.sender == owner); _;}
 
   modifier verifyCaller (address _address) { require (msg.sender == _address); _;}
 
@@ -60,15 +77,25 @@ contract SupplyChain {
    */
   
   
-  /// modifier forSale
-  /// modifier sold
-  /// modifier shipped
-  /// modifier received
+  modifier forSale(uint _sku) { 
+    require(items[_sku].state == State.ForSale || items[_sku].price != 0);
+    _;
+  }
+  modifier sold(uint _sku) {
+    require(items[_sku].state == State.Sold);
+    _;
+  }
+  modifier shipped(uint _sku) { require(items[_sku].state == State.Shipped);_;}
+  modifier received(uint _sku) { require(items[_sku].state == State.Received);_;}
+  modifier isSeller(uint _sku) { require(items[_sku].seller == msg.sender);_;}
+  modifier isBuyer(uint _sku) { require(items[_sku].buyer == msg.sender);_;}
 
 
   constructor() public {
     /* Here, set the owner as the person who instantiated the contract
        and set your skuCount to 0. */
+    owner = msg.sender;
+    skuCount = 0;
   }
 
   function addItem(string memory _name, uint _price) public returns(bool){
@@ -86,22 +113,44 @@ contract SupplyChain {
 
   function buyItem(uint sku)
     public
-  {}
+    payable
+    forSale(sku)
+    paidEnough(items[sku].price)
+    checkValue(sku)
+  {
+    // transfer money to the seller
+    items[sku].seller.transfer(items[sku].price);
+    // set the buyer as the person who called this transaction
+    items[sku].buyer = msg.sender;
+    // set the state to Sold
+    items[sku].state = State.Sold;
+    emit LogSold(sku);
+  }
 
   /* Add 2 modifiers to check if the item is sold already, and that the person calling this function
   is the seller. Change the state of the item to shipped. Remember to call the event associated with this function!*/
   function shipItem(uint sku)
     public
-  {}
+    sold(sku)
+    isSeller(sku)
+  {
+    items[sku].state = State.Shipped;
+    emit LogShipped(sku);
+  }
 
   /* Add 2 modifiers to check if the item is shipped already, and that the person calling this function
   is the buyer. Change the state of the item to received. Remember to call the event associated with this function!*/
   function receiveItem(uint sku)
     public
-  {}
+    shipped(sku)
+    isBuyer(sku)
+  {
+    items[sku].state = State.Received;
+    emit LogReceived(sku);
+  }
 
   /* We have these functions completed so we can run tests, just ignore it :) */
-  /*
+  
   function fetchItem(uint _sku) public view returns (string memory name, uint sku, uint price, uint state, address seller, address buyer) {
     name = items[_sku].name;
     sku = items[_sku].sku;
@@ -110,6 +159,6 @@ contract SupplyChain {
     seller = items[_sku].seller;
     buyer = items[_sku].buyer;
     return (name, sku, price, state, seller, buyer);
-  } */
+  }
 
 }
